@@ -1,0 +1,5 @@
+/Gemfile.lock.bak
+/coverage/
+/pkg/
+/tmp/
+.rspec_status

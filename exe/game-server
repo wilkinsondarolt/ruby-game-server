@@ -1,0 +1,32 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "optparse"
+
+# async's fiber scheduler uses IO::Buffer, which Ruby flags as experimental.
+Warning[:experimental] = false
+
+require_relative "../lib/game_server"
+
+options = {host: "127.0.0.1", port: 4000, games: File.expand_path("../games", __dir__), idle_timeout: 300}
+
+OptionParser.new do |opts|
+  opts.banner = "Usage: game-server [options]"
+  opts.on("--host HOST", "Interface to bind (default 127.0.0.1; use 0.0.0.0 for LAN play)") { options[:host] = _1 }
+  opts.on("--port PORT", Integer, "Port to listen on (default 4000)") { options[:port] = _1 }
+  opts.on("--games DIR", "Directory of game files to load (default ./games)") { options[:games] = _1 }
+  opts.on("--idle-timeout SECONDS", Integer, "Disconnect silent clients after this long (default 300)") do
+    options[:idle_timeout] = _1
+  end
+end.parse!
+
+Dir[File.join(File.expand_path(options[:games]), "*.rb")].sort.each { require _1 }
+abort "No games registered from #{options[:games]}" if GameServer.games.empty?
+
+Signal.trap("TERM") { Thread.main.raise(Interrupt) }
+
+begin
+  GameServer::Server.new(host: options[:host], port: options[:port], idle_timeout: options[:idle_timeout]).run
+rescue Interrupt
+  GameServer.logger.info("shutting down")
+end
